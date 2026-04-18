@@ -43,7 +43,7 @@ heat_rate       = struct('CCGT',0.9, 'COAL',0.6, 'NUCLEAR',0.22);
 ngen_buses      = length(gen_bus_indices);
 nT              = 48;
 national_total    = national_CCGT + national_COAL + national_NUCLEAR;
-national_total(national_total == 0) = 1;   % avoid division by zero
+national_total(national_total == 0) = 1; 
 
 gen_marginal_costs_ts = zeros(nT, ngen_buses);
 gen_Pmax_ts           = zeros(nT, ngen_buses);
@@ -97,7 +97,7 @@ mask      = depth_matrix > d0;
 Pf(mask)  = normcdf((log(depth_matrix(mask)) - log(d50)) / beta_f);
 
 Nmc = 1000;
-rng(42);   % reproducibility
+rng(42);  
 failure_tensor = rand(size(depth_matrix,1), nT, Nmc) < Pf;
 
 
@@ -122,7 +122,8 @@ for i = 1:n
 end
 
 nT_sim = length(time_profile);
-fields = {'TotalLoad','ENS','CascadeSteps','LinesTripped','Islands', 'TotalCost','GenCost','Rcrit','SIS','CSA_n','CSA_d'};
+fields = {'TotalLoad','ENS','CascadeSteps','LinesTripped','Islands', 'TotalCost','GenCost','Rcrit'};
+
 
 opf = struct();
 heu = struct();
@@ -130,8 +131,6 @@ for f = 1:length(fields)
     opf.(fields{f}) = zeros(nT_sim, Nmc);
     heu.(fields{f}) = zeros(nT_sim, Nmc);
 end
-
-tau = 0.4;   % criticality threshold for CSA metric
 
 
 
@@ -244,7 +243,7 @@ for mc = 1:Nmc
                     Sline(k) = V(fb)*conj(Iij);
                 end
                 MVA_line = abs(Sline) * basemva;
-                RateA    = linedata(:,6) * 1.1;   % tau = 1.1
+                RateA    = linedata(:,6) * 1.1;   
                 Vmag     = abs(V);
 
                 overloaded = find(MVA_line > RateA);
@@ -261,9 +260,7 @@ for mc = 1:Nmc
 
                 elseif scenario == 1
                     [Pg_opt, alpha_opt, ~, ~, exitflag] = ...
-                        solve_DC_OPF(busdata, linedata, busMap, ...
-                                     gen_bus_indices, current_gen_costs, ...
-                                     VOLL_current, C_current, basemva, 10);
+                        solve_DC_OPF(busdata, linedata, busMap, gen_bus_indices, current_gen_costs, VOLL_current, C_current, basemva, 10);
 
                     if exitflag == 1
                         pg_ptr = 1;
@@ -352,8 +349,6 @@ for mc = 1:Nmc
             timestep_ENS_Cost = 0;
             w_ens_num = 0;
             w_ens_den = 0;
-            csa_n     = 0;
-            csa_d     = 0;
 
             for i = 1:nBuses
                 orig_id     = busdata0(i,1);
@@ -374,10 +369,7 @@ for mc = 1:Nmc
                 w_ens_num = w_ens_num + C_i * bus_ens       * dt;
                 w_ens_den = w_ens_den + C_i * demand_orig   * dt;
 
-                if C_i > tau
-                    csa_n = csa_n + demand_served * dt;
-                    csa_d = csa_d + demand_orig   * dt;
-                end
+
             end
 
             ens_ts       = fullDemand_ts - totalServed_ts;
@@ -386,10 +378,8 @@ for mc = 1:Nmc
 
             if w_ens_den > 1e-9
                 rcrit = 1 - w_ens_num / w_ens_den;
-                sis   = w_ens_num / w_ens_den;
             else
                 rcrit = 1;
-                sis   = 0;
             end
 
             if scenario == 1, S = opf; else, S = heu; end
@@ -401,9 +391,6 @@ for mc = 1:Nmc
             S.GenCost(t_idx,mc)      = gen_cost_half;
             S.TotalCost(t_idx,mc)    = total_cost;
             S.Rcrit(t_idx,mc)        = rcrit;
-            S.SIS(t_idx,mc)          = sis;
-            S.CSA_n(t_idx,mc)        = csa_n;
-            S.CSA_d(t_idx,mc)        = csa_d;
             if scenario == 1, opf = S; else, heu = S; end
 
         end % scenario loop
@@ -425,8 +412,6 @@ for f = 1:length(fields)
     opf_mean.(fields{f}) = mean(opf.(fields{f}), 2);
     heu_mean.(fields{f}) = mean(heu.(fields{f}), 2);
 end
-opf_mean.CSA = mean(opf.CSA_n,2) ./ max(mean(opf.CSA_d,2), 1e-9);
-heu_mean.CSA = mean(heu.CSA_n,2) ./ max(mean(heu.CSA_d,2), 1e-9);
 
 opf_res = 1 - opf_mean.ENS ./ demandProfile;
 heu_res = 1 - heu_mean.ENS ./ demandProfile;
