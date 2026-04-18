@@ -37,7 +37,7 @@ function [Pg_opt, alpha_opt, f_econ_val, f_crit_val, exitflag, ...
 
 if nargin < 9, n_pareto = 20; end
 
-%% --- Problem dimensions ---
+
 originalBusIDs   = busdata(:,1);
 nbus             = length(originalBusIDs);
 nlines           = size(linedata,1);
@@ -49,8 +49,6 @@ ngen             = length(active_gen_ids);
 % Decision variable layout: [Pg(ngen) | alpha(nbus) | theta(nbus)]
 theta_offset = ngen + nbus;
 nvars        = ngen + nbus + nbus;
-
-%% --- DC susceptance matrix ---
 Bbus = zeros(nbus);
 for k = 1:nlines
     ii = busMap(linedata(k,1));
@@ -63,7 +61,6 @@ for k = 1:nlines
 end
 
 %% --- Equality constraints: power balance + slack reference ---
-% sum_g(Pg_i)/basemva - alpha_i*Pd_i/basemva = sum_j(B_ij * theta_j)
 Aeq  = zeros(nbus+1, nvars);
 beq  = zeros(nbus+1, 1);
 Pd_all = busdata(:,5);
@@ -95,20 +92,23 @@ for k = 1:nlines
     bineq(2*k-1:2*k) = Fmax;
 end
 
-%% --- Variable bounds ---
+
+
+
 lb = -inf(nvars,1);
 ub =  inf(nvars,1);
 for g = 1:ngen
     row_idx = find(busdata(:,1) == active_gen_ids(g));
     lb(g)   = 0;
-    ub(g)   = busdata(row_idx, 9);   % Pmax from bus data column 9
+    ub(g)   = busdata(row_idx, 9); 
 end
-lb(ngen+1:ngen+nbus)    = 0;    % alpha in [0,1]
+lb(ngen+1:ngen+nbus)    = 0;    
 ub(ngen+1:ngen+nbus)    = 1;
 lb(theta_offset+1:end)  = -pi;
 ub(theta_offset+1:end)  =  pi;
 
-%% --- Objective function vectors ---
+
+
 % Economic objective (eq. 12): linear in x, all buses included
 f_econ_vec = zeros(nvars,1);
 f_econ_vec(1:ngen) = active_gen_costs;
@@ -123,7 +123,6 @@ f_econ_fh    = @(x) f_econ_vec'*x + f_econ_const;
 VOLL_C    = VOLL_vec .* C_vec;
 f_crit_fh = @(x) sum(VOLL_C .* (1 - x(ngen+1:ngen+nbus)).^2 .* Pd_all);
 
-%% --- Solver options ---
 lp_opts  = optimoptions('linprog',  'Display','none');
 fmc_opts = optimoptions('fmincon',  'Display','none', ...
     'Algorithm','interior-point', ...
@@ -140,8 +139,7 @@ x0(ngen+1:ngen+nbus) = 1;
 x0 = max(lb, min(ub, x0));
 
 %% --- Step 1: Economic anchor (minimise f_econ alone) ---
-[x_econ, ~, flag_econ] = linprog(f_econ_vec, Aineq, bineq, ...
-                                  Aeq, beq, lb, ub, lp_opts);
+[x_econ, ~, flag_econ] = linprog(f_econ_vec, Aineq, bineq, Aeq, beq, lb, ub, lp_opts);
 if flag_econ ~= 1
     % Infeasible problem — return empty
     Pg_opt=[];  alpha_opt=[];  f_econ_val=NaN;  f_crit_val=NaN;
@@ -154,8 +152,7 @@ eps_hi            = f_crit_at_minecon;
 
 %% --- Step 2: Criticality anchor (minimise f_crit alone) ---
 obj_crit = @(x) fcrit_with_grad(x, ngen, nbus, VOLL_C, Pd_all);
-[x_crit, ~, flag_crit] = fmincon(obj_crit, x0, Aineq, bineq, ...
-                                   Aeq, beq, lb, ub, [], fmc_opts);
+[x_crit, ~, flag_crit] = fmincon(obj_crit, x0, Aineq, bineq, Aeq, beq, lb, ub, [], fmc_opts);
 if flag_crit > 0
     f_crit_at_mincrit = f_crit_fh(x_crit);
 else
@@ -164,7 +161,6 @@ else
 end
 eps_lo = f_crit_at_mincrit;
 
-%% --- Early exit: objectives not in conflict ---
 if abs(eps_hi - eps_lo) < 1e-6
     Pg_opt    = x_econ(1:ngen);
     alpha_opt = x_econ(ngen+1:ngen+nbus);
@@ -187,12 +183,10 @@ for ep = 1:n_pareto
     epsilon = eps_values(ep);
     nl_con  = @(x) fcrit_constraint(x, ngen, nbus, VOLL_C, Pd_all, epsilon);
 
-    % Warm start: convex combination of anchor solutions
     frac   = (ep-1) / max(n_pareto-1, 1);
     x_init = max(lb, min(ub, (1-frac)*x_econ + frac*x_crit));
 
-    [x_ep, ~, flag_ep] = fmincon(obj_econ, x_init, Aineq, bineq, ...
-                                   Aeq, beq, lb, ub, nl_con, fmc_opts);
+    [x_ep, ~, flag_ep] = fmincon(obj_econ, x_init, Aineq, bineq, Aeq, beq, lb, ub, nl_con, fmc_opts);
     if flag_ep > 0
         pareto_econ(ep) = f_econ_fh(x_ep);
         pareto_crit(ep) = f_crit_fh(x_ep);
@@ -213,7 +207,7 @@ end
 
 pe   = pareto_econ(valid);
 pc   = pareto_crit(valid);
-pe_n = (pe - min(pe)) / max(max(pe)-min(pe), 1e-9);   % normalise (eq. 25)
+pe_n = (pe - min(pe)) / max(max(pe)-min(pe), 1e-9);  
 pc_n = (pc - min(pc)) / max(max(pc)-min(pc), 1e-9);
 [~,ki]  = min(pe_n.^2 + pc_n.^2);
 vi      = find(valid);
@@ -224,15 +218,11 @@ alpha_opt  = x_knee(ngen+1:ngen+nbus);
 f_econ_val = pareto_econ(vi(ki));
 f_crit_val = pareto_crit(vi(ki));
 exitflag   = 1;
+end 
 
-end % solve_DC_OPF
 
-%% =========================================================
-%  HELPER FUNCTIONS  (analytical gradients for fmincon)
-% =========================================================
 
 function [val, grad] = fcrit_with_grad(x, ngen, nbus, VOLL_C, Pd_all)
-%FCRIT_WITH_GRAD  Criticality objective with analytical gradient.
 %   f_crit = sum_i(VOLL_C_i * (1-alpha_i)^2 * Pd_i)
 %   df/d(alpha_i) = -2 * VOLL_C_i * (1-alpha_i) * Pd_i
     alpha = x(ngen+1:ngen+nbus);
@@ -242,16 +232,17 @@ function [val, grad] = fcrit_with_grad(x, ngen, nbus, VOLL_C, Pd_all)
     grad(ngen+1:ngen+nbus) = -2 * VOLL_C .* shed .* Pd_all;
 end
 
+
+
 function [val, grad] = fecon_with_grad(x, f_econ_vec, f_econ_const)
-%FECON_WITH_GRAD  Economic objective with analytical gradient.
 %   f_econ = f_econ_vec' * x + f_econ_const  (linear)
     val  = f_econ_vec'*x + f_econ_const;
     grad = f_econ_vec;
 end
 
-function [c, ceq, dc, dceq] = fcrit_constraint(x, ngen, nbus, ...
-                                                 VOLL_C, Pd_all, epsilon)
-%FCRIT_CONSTRAINT  Epsilon-constraint for criticality objective.
+
+
+function [c, ceq, dc, dceq] = fcrit_constraint(x, ngen, nbus, VOLL_C, Pd_all, epsilon)
 %   c(x) = f_crit(x) - epsilon <= 0
     alpha = x(ngen+1:ngen+nbus);
     shed  = 1 - alpha;
