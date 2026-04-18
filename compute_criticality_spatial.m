@@ -1,31 +1,24 @@
 function [critical_proximity, density_norm] =  compute_criticality_spatial(lats, lons, n)
-lat_to_m = 111320;
-lon_to_m = 111320 * cos(deg2rad(53.96));
-
-rd_metres = 700; 
+rd_deg = 0.005;   
+rc_deg = 0.002; 
 [b_lats, b_lons] = load_geojson_points('export.geojson');
 N_buildings      = length(b_lats);
 building_density = zeros(n,1);
 
 for i = 1:n
-    dlat_m = (b_lats - lats(i)) * lat_to_m;
-    dlon_m = (b_lons - lons(i)) * lon_to_m;
-    dist_m = sqrt(dlat_m.^2 + dlon_m.^2);
-    building_density(i) = sum(dist_m <= rd_metres);
+    dist_deg = sqrt((b_lats - lats(i)).^2 + (b_lons - lons(i)).^2);
+    building_density(i) = sum(dist_deg <= rd_deg);
 end
 
 rho_max      = max(building_density);
 density_norm = building_density / rho_max;
 
-rc_metres = 500;   
 [c_lats, c_lons] = load_geojson_points('critical.geojson');
 critical_proximity = zeros(n,1);
 
 for i = 1:n
-    dlat_c = (c_lats - lats(i)) * lat_to_m;
-    dlon_c = (c_lons - lons(i)) * lon_to_m;
-    dist_c = sqrt(dlat_c.^2 + dlon_c.^2);
-    critical_proximity(i) = double(min(dist_c) <= rc_metres);
+    dist_deg = sqrt((c_lats - lats(i)).^2 + (c_lons - lons(i)).^2);
+    critical_proximity(i) = double(min(dist_deg) <= rc_deg);
 end
 
 slack_json_idx = find(ismember(1:n, 9));   
