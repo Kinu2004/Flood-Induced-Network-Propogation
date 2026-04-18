@@ -1,48 +1,17 @@
-%% =========================================================
-%  Flood-Resilient Power System Optimisation
-%  Main Simulation Script
-%
-%  Reference: "Mitigation of Flood-induced Network Fragmentation
-%  and Cascade Failure in Power Systems"
-%
-%  Requires:
-%    - York_Flood_Depth.xlsx   (30 x 48 flood depth matrix)
-%    - busdata.xlsx            (IEEE 30-bus system bus data)
-%    - linedata.xlsx           (IEEE 30-bus system line data)
-%    - demand2015.xlsx         (UK National Grid demand, 26 Dec 2015)
-%    - marketindexprice2015.xlsx (APX half-hourly market prices)
-%    - generationmix2015.xlsx  (National Grid generation mix)
-%    - export.geojson          (OSM building centroids, York)
-%    - critical.geojson        (Hospital/emergency service locations)
-%
-%  Outputs:
-%    - opf  struct: per-timestep metrics for OPF strategy
-%    - heu  struct: per-timestep metrics for heuristic strategy
-%    - Figures: ENS, resilience, cascade behaviour, Pareto front
-% =========================================================
-
 clear; clc; close all;
 
-%% -----------------------------------------------------------
-%  1. LOAD NETWORK DATA
-% -----------------------------------------------------------
 busdata0   = readmatrix('busdata.xlsx');
 linedata0  = readmatrix('linedata.xlsx');
 nBuses     = size(busdata0, 1);
 basemva    = 100;
-linedata0(:,7) = (1:size(linedata0,1))';   % assign line IDs
+linedata0(:,7) = (1:size(linedata0,1))';  
+Vmax       = 1.05;   
+Vmin       = 0.95;   
+maxCascade = 10;     
+slackBusID = 1;      
+dt         = 0.5;    
 
-% Simulation constants
-Vmax       = 1.05;   % p.u. overvoltage limit
-Vmin       = 0.95;   % p.u. undervoltage limit
-maxCascade = 10;     % maximum cascade iterations
-slackBusID = 1;      % reference bus
-dt         = 0.5;    % half-hour timestep (hours)
-
-%% -----------------------------------------------------------
-%  2. LOAD GEOGRAPHIC SUBSTATION LOCATIONS (OSM)
-% -----------------------------------------------------------
-json_raw = load_substation_json();   % see helper at bottom of file
+json_raw = load_substation_json();  
 data     = jsondecode(strjoin(json_raw, ''));
 n        = length(data);
 lats     = zeros(n,1);
@@ -58,28 +27,21 @@ for i = 1:n
     end
 end
 
-% Mapping: OSM node order -> IEEE bus ID
-json_to_busID = [14,23,7,11,24,9,20,29,1,13, ...
-                 26,27,30,6,17,22,15,5,10,16, ...
-                 18,28,2,4,19,8,12,3,25,21];
+json_to_busID = [14,23,7,11,24,9,20,29,1,13,26,27,30,6,17,22,15,5,10,16,18,28,2,4,19,8,12,3,25,21];
 
-%% -----------------------------------------------------------
-%  3. LOAD DEMAND, PRICE AND GENERATION MIX DATA
-% -----------------------------------------------------------
+
+
+                 
 target_date    = datetime(2015,12,26);
 time_profile   = load_demand_profile('demand2015.xlsx', target_date);
 apx_price      = load_apx_prices('marketindexprice2015.xlsx', target_date);
 [national_CCGT, national_COAL, national_NUCLEAR] = ...
     load_generation_mix('generationmix2015.xlsx', target_date);
-
-% Generator bus assignments and fuel types
 gen_bus_indices = [1, 2, 13, 22, 23, 27];
 gen_fuel_types  = {'CCGT','CCGT','COAL','COAL','NUCLEAR','NUCLEAR'};
 heat_rate       = struct('CCGT',0.9, 'COAL',0.6, 'NUCLEAR',0.22);
 ngen_buses      = length(gen_bus_indices);
 nT              = 48;
-
-local_system_peak = sum(busdata0(:,9));
 national_total    = national_CCGT + national_COAL + national_NUCLEAR;
 national_total(national_total == 0) = 1;   % avoid division by zero
 
@@ -97,16 +59,15 @@ for t = 1:nT
     end
 end
 
-%% -----------------------------------------------------------
-%  4. VALUE OF LOST LOAD (VoLL) ASSIGNMENTS
-% -----------------------------------------------------------
-% Sector classifications (bus IDs)
+
+
+
 sector_emergency   = [1, 12, 22];
 sector_commercial  = [2, 3, 6, 10, 15, 18, 19, 24, 25];
 sector_residential = [4, 5, 7, 11, 17, 20, 23, 27, 28, 29, 30];
 sector_public      = [8, 9, 13, 14, 16, 21, 26];
 
-VOLL_EMERGENCY   = 50000;   % £/MWh
+VOLL_EMERGENCY   = 50000;  
 VOLL_COMMERCIAL  = 15000;
 VOLL_RESIDENTIAL = 8000;
 VOLL_PUBLIC      = 2000;
@@ -123,16 +84,13 @@ for i = 1:nBuses
     end
 end
 
-%% -----------------------------------------------------------
-%  5. FLOOD FRAGILITY AND MONTE CARLO SAMPLING
-% -----------------------------------------------------------
-depth_matrix = readmatrix('York_Flood_Depth.xlsx', 'Range', 'B36');
-% depth_matrix: [30 substations x 48 timesteps], units metres
 
-% Lognormal fragility parameters (from Liasi et al. 2026)
-d0     = 0.10678;   % onset depth (m)
-d50    = 1.1441;    % median failure depth (m)
-beta_f = 0.4381;    % dispersion parameter
+
+
+depth_matrix = readmatrix('York_Flood_Depth.xlsx', 'Range', 'B36');
+d0     = 0.10678;   
+d50    = 1.1441;    
+beta_f = 0.4381;    
 
 Pf        = zeros(size(depth_matrix));
 mask      = depth_matrix > d0;
@@ -142,25 +100,19 @@ Nmc = 1000;
 rng(42);   % reproducibility
 failure_tensor = rand(size(depth_matrix,1), nT, Nmc) < Pf;
 
-%% -----------------------------------------------------------
-%  6. CRITICALITY INDEX COMPUTATION
-% -----------------------------------------------------------
-[critical_proximity, density_norm] = ...
-    compute_criticality_spatial(lats, lons, n);
 
-alpha1 = 0.4;   % flood exposure weight
-alpha2 = 0.3;   % infrastructure proximity weight
-alpha3 = 0.3;   % building density weight
+
+[critical_proximity, density_norm] = compute_criticality_spatial(lats, lons, n);
+alpha1 = 0.4;   
+alpha2 = 0.3;   
+alpha3 = 0.3;   
 
 C_matrix   = zeros(n, nT);
 d_max_all  = max(depth_matrix(:));
 for tt = 1:nT
-    C_matrix(:,tt) = alpha1 * (depth_matrix(:,tt) / d_max_all) + ...
-                     alpha2 * critical_proximity + ...
-                     alpha3 * density_norm;
+    C_matrix(:,tt) = alpha1 * (depth_matrix(:,tt) / d_max_all) +  alpha2 * critical_proximity +  alpha3 * density_norm;
 end
 
-% Map from OSM index to bus ID ordering
 C_byBusID = zeros(nBuses, nT);
 for i = 1:n
     row = busdata0(:,1) == json_to_busID(i);
@@ -169,12 +121,8 @@ for i = 1:n
     end
 end
 
-%% -----------------------------------------------------------
-%  7. INITIALISE RESULT STORAGE
-% -----------------------------------------------------------
 nT_sim = length(time_profile);
-fields = {'TotalLoad','ENS','CascadeSteps','LinesTripped','Islands', ...
-          'TotalCost','GenCost','Rcrit','SIS','CSA_n','CSA_d'};
+fields = {'TotalLoad','ENS','CascadeSteps','LinesTripped','Islands', 'TotalCost','GenCost','Rcrit','SIS','CSA_n','CSA_d'};
 
 opf = struct();
 heu = struct();
@@ -185,22 +133,17 @@ end
 
 tau = 0.4;   % criticality threshold for CSA metric
 
-%% -----------------------------------------------------------
-%  8. MAIN SIMULATION LOOP
-% -----------------------------------------------------------
-fprintf('Starting simulation: %d MC realisations x %d timesteps\n', ...
-        Nmc, nT_sim);
+
+
+fprintf('Starting simulation: %d MC realisations x %d timesteps\n', Nmc, nT_sim);
 tic;
 
 for mc = 1:Nmc
     if mod(mc,100) == 0
-        fprintf('  MC iteration %d / %d  (%.1f min elapsed)\n', ...
-                mc, Nmc, toc/60);
+        fprintf('  MC iteration %d / %d  (%.1f min elapsed)\n', mc, Nmc, toc/60);
     end
 
     for t_idx = 1:nT_sim
-
-        % --- Scale demand and generator capacity for this timestep ---
         scale_factor      = time_profile(t_idx);
         current_gen_costs = gen_marginal_costs_ts(t_idx,:);
 
@@ -214,7 +157,6 @@ for mc = 1:Nmc
             end
         end
 
-        % --- Apply flood outages (pre-cascade) ---
         linedata_base = linedata0;
         outages = find(failure_tensor(:,t_idx,mc))';
         if ~isempty(outages)
@@ -223,7 +165,6 @@ for mc = 1:Nmc
                           ~ismember(linedata_base(:,2),busdata_base(:,1)),:) = [];
         end
 
-        % --- Run both strategies ---
         for scenario = 1:2
             busdata  = busdata_base;
             linedata = linedata_base;
@@ -234,11 +175,9 @@ for mc = 1:Nmc
             linesTrippedThis = 0;
             islandsThis     = 0;
 
-            %% Cascade loop
             while ~stable && iter < maxCascade
                 iter = iter + 1;
 
-                % Island detection
                 busIDs   = busdata(:,1);
                 nbus     = length(busIDs);
                 mapGraph = containers.Map(busIDs, 1:nbus);
@@ -260,7 +199,6 @@ for mc = 1:Nmc
                     islandsThis = islandsThis + numC;
                 end
 
-                % Black out islands without slack bus
                 for c = 1:numC
                     members = busIDs(comps == c);
                     if ~ismember(slackBusID, members)
@@ -270,13 +208,11 @@ for mc = 1:Nmc
                     end
                 end
 
-                % Update bus list after island removal
                 originalBusIDs = busdata(:,1);
                 nbus_current   = length(originalBusIDs);
                 if nbus_current == 0, break; end
                 busMap = containers.Map(originalBusIDs, 1:nbus_current);
 
-                % Get criticality and VoLL for surviving buses
                 C_current    = zeros(nbus_current,1);
                 VOLL_current = zeros(nbus_current,1);
                 for i = 1:nbus_current
@@ -286,7 +222,6 @@ for mc = 1:Nmc
                     VOLL_current(i) = VOLL_static(brow);
                 end
 
-                % Renumber buses for NR solver
                 busdata_s  = busdata;  busdata_s(:,1)  = (1:nbus_current)';
                 linedata_s = linedata;
                 for k = 1:size(linedata,1)
@@ -294,12 +229,10 @@ for mc = 1:Nmc
                     linedata_s(k,2) = busMap(linedata(k,2));
                 end
 
-                % AC power flow (Newton-Raphson)
                 [busdata_s, V] = solver_NR(busdata_s, linedata_s);
                 V = V(:);
                 if any(isnan(V)), break; end
 
-                % Compute line flows and check limits
                 nbranch = size(linedata_s,1);
                 Sline   = zeros(nbranch,1);
                 for k = 1:nbranch
@@ -318,7 +251,6 @@ for mc = 1:Nmc
                 overV      = find(Vmag > Vmax);
                 underV     = find(Vmag < Vmin);
 
-                % --- Stopping criterion: no violations ---
                 if isempty(overloaded) && isempty(overV) && isempty(underV)
                     stable = true;
                     for g = 1:ngen_buses
@@ -328,14 +260,12 @@ for mc = 1:Nmc
                     end
 
                 elseif scenario == 1
-                    %% --- OPF SCENARIO ---
                     [Pg_opt, alpha_opt, ~, ~, exitflag] = ...
                         solve_DC_OPF(busdata, linedata, busMap, ...
                                      gen_bus_indices, current_gen_costs, ...
                                      VOLL_current, C_current, basemva, 10);
 
                     if exitflag == 1
-                        % Apply generator dispatch
                         pg_ptr = 1;
                         for g = 1:ngen_buses
                             tid   = gen_bus_indices(g);
@@ -348,7 +278,6 @@ for mc = 1:Nmc
                                 end
                             end
                         end
-                        % Apply load retention (against original scaled demand)
                         for i = 1:nbus_current
                             orig_id  = originalBusIDs(i);
                             row_cur  = busdata(:,1)  == orig_id;
@@ -357,7 +286,6 @@ for mc = 1:Nmc
                             busdata(row_cur,6) = busdata0(row_orig,6) * scale_factor * alpha_opt(i);
                         end
                     else
-                        % OPF infeasible: trip worst overloaded line
                         if ~isempty(overloaded)
                             [~,worst] = max(MVA_line ./ RateA);
                             linedata(worst,:) = [];
@@ -366,7 +294,6 @@ for mc = 1:Nmc
                     end
 
                 else
-                    %% --- HEURISTIC SCENARIO ---
                     % Shed 10% uniformly, re-run NR, trip worst line if needed
                     for i = 1:nbus_current
                         busdata(i,5) = busdata(i,5) * 0.9;
@@ -414,7 +341,6 @@ for mc = 1:Nmc
                 end % scenario branch
             end % cascade loop
 
-            %% --- COMPUTE TIMESTEP METRICS ---
             fullDemand_ts = sum(busdata0(:,5)) * scale_factor;
 
             gen_cost_ts = 0;
@@ -466,7 +392,6 @@ for mc = 1:Nmc
                 sis   = 0;
             end
 
-            % Store results in correct struct
             if scenario == 1, S = opf; else, S = heu; end
             S.TotalLoad(t_idx,mc)    = totalServed_ts;
             S.ENS(t_idx,mc)          = ens_ts;
@@ -487,9 +412,9 @@ end % MC loop
 
 fprintf('Simulation complete in %.1f minutes.\n', toc/60);
 
-%% -----------------------------------------------------------
-%  9. AGGREGATE RESULTS
-% -----------------------------------------------------------
+
+
+
 peakDemand    = sum(busdata0(:,5));
 demandProfile = time_profile * peakDemand;
 totalDemand   = sum(demandProfile) * dt;
@@ -516,37 +441,31 @@ heu_ENS_cost = sum(mean(heu.TotalCost - heu.GenCost, 2));
 opf_gen_cost = sum(opf_mean.GenCost);
 heu_gen_cost = sum(heu_mean.GenCost);
 
-%% -----------------------------------------------------------
-%  10. PRINT SUMMARY
-% -----------------------------------------------------------
+
+
+
 fprintf('\n%s\n', repmat('=',1,60));
 fprintf('%-22s  %10s  %10s  %10s\n','Metric','OPF','Heuristic','Improvement');
 fprintf('%s\n', repmat('-',1,60));
-fprintf('%-22s  %10.4f  %10.4f  %+10.4f\n','R (standard)', ...
-    opf_R, heu_R, opf_R-heu_R);
-fprintf('%-22s  %10.4f  %10.4f  %+10.4f\n','R_crit (mean)', ...
-    mean(opf_mean.Rcrit), mean(heu_mean.Rcrit), ...
+fprintf('%-22s  %10.4f  %10.4f  %+10.4f\n','R (standard)',  opf_R, heu_R, opf_R-heu_R);
+fprintf('%-22s  %10.4f  %10.4f  %+10.4f\n','R_crit (mean)',mean(opf_mean.Rcrit), mean(heu_mean.Rcrit), ...
     mean(opf_mean.Rcrit)-mean(heu_mean.Rcrit));
-fprintf('%-22s  %10.0f  %10.0f  %+10.0f\n','ENS cost (£)', ...
-    opf_ENS_cost, heu_ENS_cost, heu_ENS_cost-opf_ENS_cost);
-fprintf('%-22s  %10.0f  %10.0f  %+10.0f\n','Gen cost (£)', ...
-    opf_gen_cost, heu_gen_cost, heu_gen_cost-opf_gen_cost);
-fprintf('%-22s  %10.0f  %10.0f  %+10.0f\n','Total cost (£)', ...
-    opf_ENS_cost+opf_gen_cost, heu_ENS_cost+heu_gen_cost, ...
-    (heu_ENS_cost+heu_gen_cost)-(opf_ENS_cost+opf_gen_cost));
+fprintf('%-22s  %10.0f  %10.0f  %+10.0f\n','ENS cost (£)',   opf_ENS_cost, heu_ENS_cost, heu_ENS_cost-opf_ENS_cost);
+fprintf('%-22s  %10.0f  %10.0f  %+10.0f\n','Gen cost (£)',  opf_gen_cost, heu_gen_cost, heu_gen_cost-opf_gen_cost);
+fprintf('%-22s  %10.0f  %10.0f  %+10.0f\n','Total cost (£)',opf_ENS_cost+opf_gen_cost, heu_ENS_cost+heu_gen_cost, (heu_ENS_cost+heu_gen_cost)-(opf_ENS_cost+opf_gen_cost));
 fprintf('%s\n', repmat('=',1,60));
 
-%% -----------------------------------------------------------
-%  11. GENERATE FIGURES
-% -----------------------------------------------------------
+
+
+
 plot_results(opf_mean, heu_mean, opf_res, heu_res, ...
              demandProfile, time_profile, opf, heu);
 plot_pareto(busdata0, linedata0, C_byBusID, gen_bus_indices, ...
             gen_marginal_costs_ts, VOLL_static, basemva, time_profile);
 
-%% -----------------------------------------------------------
-%  LOCAL HELPER: load substation JSON
-% -----------------------------------------------------------
+
+
+
 function json_raw = load_substation_json()
 json_raw = [ "["
   "{""type"":""node"",""lat"":53.946011,""lon"":-1.054898,""tags"":{""name"":""Ridgeway Yor""}},"
