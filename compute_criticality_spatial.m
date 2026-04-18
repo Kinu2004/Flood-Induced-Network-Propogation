@@ -1,35 +1,8 @@
-function [critical_proximity, density_norm] = ...
-    compute_criticality_spatial(lats, lons, n)
-%COMPUTE_CRITICALITY_SPATIAL  Compute spatial components of criticality index.
-%
-%   Computes two of the three components of the composite criticality
-%   index defined in eq. (16):
-%
-%     Y_i  = binary proximity indicator (eq. 14)
-%     rho_i/rho_max = normalised building density (eq. 15)
-%
-%   Building and critical infrastructure coordinates are loaded from
-%   GeoJSON files exported from OpenStreetMap for the York study area.
-%
-%   INPUTS:
-%     lats   Substation latitudes  [n x 1]
-%     lons   Substation longitudes [n x 1]
-%     n      Number of substations
-%
-%   OUTPUTS:
-%     critical_proximity   Binary proximity indicator Y_i [n x 1]
-%     density_norm         Normalised building density rho_i/rho_max [n x 1]
-%
-%   NOTE: rc = 500m (~0.002 deg) and rd = 700m (~0.005 deg) at York latitude.
-%   These correspond to the values reported in Table II of the paper.
-
-% Local projection factors for York (~53.96 N)
+function [critical_proximity, density_norm] =  compute_criticality_spatial(lats, lons, n)
 lat_to_m = 111320;
 lon_to_m = 111320 * cos(deg2rad(53.96));
 
-%% --- Building density (eq. 15) ---
-rd_metres = 700;   % building density radius
-
+rd_metres = 700; 
 [b_lats, b_lons] = load_geojson_points('export.geojson');
 N_buildings      = length(b_lats);
 building_density = zeros(n,1);
@@ -44,9 +17,7 @@ end
 rho_max      = max(building_density);
 density_norm = building_density / rho_max;
 
-%% --- Critical infrastructure proximity (eq. 14) ---
-rc_metres = 500;   % proximity radius (hospitals, police, fire)
-
+rc_metres = 500;   
 [c_lats, c_lons] = load_geojson_points('critical.geojson');
 critical_proximity = zeros(n,1);
 
@@ -57,22 +28,14 @@ for i = 1:n
     critical_proximity(i) = double(min(dist_c) <= rc_metres);
 end
 
-% Manual override: Bus 1 (slack/reference) always marked critical
-% This ensures the reference bus is protected under all conditions
-slack_json_idx = find(ismember(1:n, 9));   % Bus 1 is OSM index 9
+slack_json_idx = find(ismember(1:n, 9));   
 if ~isempty(slack_json_idx)
     critical_proximity(slack_json_idx) = 1;
 end
 
-end % compute_criticality_spatial
-
-%% =========================================================
-%  LOCAL HELPER
-% =========================================================
+end 
 
 function [point_lats, point_lons] = load_geojson_points(filename)
-%LOAD_GEOJSON_POINTS  Extract point coordinates from a GeoJSON file.
-%   Expects Point geometry features with [longitude, latitude] coordinate order.
 
     fid  = fopen(filename, 'r');
     raw  = fread(fid, inf, 'uint8=>char')';
