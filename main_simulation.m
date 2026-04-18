@@ -10,6 +10,7 @@ Vmin       = 0.95;
 maxCascade = 10;     
 slackBusID = 1;      
 dt         = 0.5;    
+tau       = 1.1; 
 
 json_raw = load_substation_json();  
 data     = jsondecode(strjoin(json_raw, ''));
@@ -246,7 +247,7 @@ for mc = 1:Nmc
                 RateA    = linedata(:,6) * 1.1;   
                 Vmag     = abs(V);
 
-                overloaded = find(MVA_line > RateA);
+                overloaded = find(MVA_line > RateA * tau);
                 overV      = find(Vmag > Vmax);
                 underV     = find(Vmag < Vmin);
 
@@ -443,10 +444,8 @@ fprintf('%s\n', repmat('=',1,60));
 
 
 
-plot_results(opf_mean, heu_mean, opf_res, heu_res, ...
-             demandProfile, time_profile, opf, heu);
-plot_pareto(busdata0, linedata0, C_byBusID, gen_bus_indices, ...
-            gen_marginal_costs_ts, VOLL_static, basemva, time_profile);
+plot_results(opf_mean, heu_mean, opf_res, heu_res, demandProfile, time_profile, opf, heu);
+plot_pareto(busdata0, linedata0, C_byBusID, gen_bus_indices, gen_marginal_costs_ts, VOLL_static, basemva, time_profile);
 
 
 
