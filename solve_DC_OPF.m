@@ -12,21 +12,21 @@ active_gen_ids   = gen_bus_indices(active_gen_mask);
 active_gen_costs = gen_costs(active_gen_mask);
 ngen             = length(active_gen_ids);
 
-% Decision variable layout: [Pg(ngen) | alpha(nbus) | theta(nbus)]
+%% Decision variables; Pg(ngen) | alpha(nbus) | theta(nbus)
 theta_offset = ngen + nbus;
 nvars        = ngen + nbus + nbus;
 Bbus = zeros(nbus);
 for k = 1:nlines
     ii = busMap(linedata(k,1));
     jj = busMap(linedata(k,2));
-    b  = 1 / linedata(k,4);   % susceptance = 1/reactance
+    b  = 1 / linedata(k,4);   
     Bbus(ii,ii) = Bbus(ii,ii) + b;
     Bbus(jj,jj) = Bbus(jj,jj) + b;
     Bbus(ii,jj) = Bbus(ii,jj) - b;
     Bbus(jj,ii) = Bbus(jj,ii) - b;
 end
 
-%% --- Equality constraints: power balance + slack reference ---
+%%  Equality; power balance + slack reference
 Aeq  = zeros(nbus+1, nvars);
 beq  = zeros(nbus+1, 1);
 Pd_all = busdata(:,5);
@@ -42,7 +42,7 @@ for i = 1:nbus
 end
 Aeq(nbus+1, theta_offset+1) = 1;   % slack bus angle = 0
 
-%% --- Inequality constraints: thermal line limits ---
+%% Inequality; thermal limits 
 % -Fmax <= b_ij*(theta_i - theta_j) <= Fmax
 Aineq = zeros(2*nlines, nvars);
 bineq = zeros(2*nlines, 1);
@@ -79,7 +79,7 @@ f_econ_vec(1:ngen) = active_gen_costs;
 for i = 1:nbus
     f_econ_vec(ngen+i) = -VOLL_vec(i) * Pd_all(i);
 end
-f_econ_const = sum(VOLL_vec .* Pd_all);   % shifts ENS term to be positive
+f_econ_const = sum(VOLL_vec .* Pd_all);  
 f_econ_fh    = @(x) f_econ_vec'*x + f_econ_const;
 f_crit_fh = @(x) sum(C_vec .* (1 - x(ngen+1:ngen+nbus)).^2 .* Pd_all);
 
@@ -92,7 +92,6 @@ fmc_opts = optimoptions('fmincon',  'Display','none', ...
     'SpecifyObjectiveGradient',  true, ...
     'SpecifyConstraintGradient', true);
 
-% Initial point: generators at half capacity, full load retention
 x0 = zeros(nvars,1);
 for g = 1:ngen, x0(g) = ub(g) * 0.5; end
 x0(ngen+1:ngen+nbus) = 1;
