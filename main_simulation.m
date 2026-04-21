@@ -244,10 +244,10 @@ for mc = 1:Nmc
                     Sline(k) = V(fb)*conj(Iij);
                 end
                 MVA_line = abs(Sline) * basemva;
-                RateA    = linedata(:,6) * 1.1;   
+                RateA    = linedata(:,6) * tau;   
                 Vmag     = abs(V);
 
-                overloaded = find(MVA_line > RateA * tau);
+                overloaded = find(MVA_line > RateA);
                 overV      = find(Vmag > Vmax);
                 underV     = find(Vmag < Vmin);
 
