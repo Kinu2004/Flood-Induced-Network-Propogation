@@ -40,7 +40,7 @@ apx_price      = load_apx_prices('marketindexprice2015.xlsx', target_date);
     load_generation_mix('generationmix2015.xlsx', target_date);
 gen_bus_indices = [1, 2, 13, 22, 23, 27];
 gen_fuel_types  = {'CCGT','CCGT','COAL','COAL','NUCLEAR','NUCLEAR'};
-heat_rate       = struct('CCGT',0.9, 'COAL',0.6, 'NUCLEAR',0.22);
+ratio       = struct('CCGT',0.9, 'COAL',0.6, 'NUCLEAR',0.22);
 ngen_buses      = length(gen_bus_indices);
 nT              = 48;
 national_total    = national_CCGT + national_COAL + national_NUCLEAR;
@@ -49,13 +49,13 @@ national_total(national_total == 0) = 1;
 gen_marginal_costs_ts = zeros(nT, ngen_buses);
 gen_Pmax_ts           = zeros(nT, ngen_buses);
 for t = 1:nT
-    spot = max(apx_price(t), 20);   % floor price at £20/MWh
+    spot = max(apx_price(t), 20);   
     frac = struct('CCGT',  national_CCGT(t)   / national_total(t), ...
                   'COAL',  national_COAL(t)   / national_total(t), ...
                   'NUCLEAR', national_NUCLEAR(t) / national_total(t));
     for g = 1:ngen_buses
         fuel = gen_fuel_types{g};
-        gen_marginal_costs_ts(t,g) = spot * heat_rate.(fuel);
+        gen_marginal_costs_ts(t,g) = spot * ratio.(fuel);
         gen_Pmax_ts(t,g)           = (frac.(fuel) * local_system_peak) / 2;
     end
 end
@@ -292,7 +292,7 @@ for mc = 1:Nmc
                     end
 
                 else
-                    % Shed 10% uniformly, re-run NR, trip worst line if needed
+                    
                     for i = 1:nbus_current
                         busdata(i,5) = busdata(i,5) * 0.9;
                         busdata(i,6) = busdata(i,6) * 0.9;
