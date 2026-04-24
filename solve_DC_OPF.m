@@ -43,7 +43,6 @@ end
 Aeq(nbus+1, theta_offset+1) = 1;   % slack bus angle = 0
 
 %% Inequality; thermal limits 
-% -Fmax <= b_ij*(theta_i - theta_j) <= Fmax
 Aineq = zeros(2*nlines, nvars);
 bineq = zeros(2*nlines, 1);
 for k = 1:nlines
