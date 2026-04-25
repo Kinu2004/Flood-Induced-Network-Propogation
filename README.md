@@ -61,7 +61,7 @@ A time-varying composite criticality index combines three spatial components:
 
 $C_i(t) = 0.4 \cdot \frac{d_{i,t}}{d_{\max}} + 0.3 \cdot Y_i + 0.3 \cdot \frac{\rho_i}{\rho_{\max}}$
 
-where $d_{i,t}/d_{\max}$ is normalised flood exposure, $Y_i \in \{0,1\}$ is proximity to critical infrastructure (hospitals, police, fire stations) within 500 m, and $\rho_i/\rho_{\max}$ is normalised building density within 700 m.
+where $d_{i,t}/d_{\max}$ is normalised flood exposure, $Y_i \in \{0,1\}$ is proximity to critical infrastructure (hospitals, police, fire stations) within 150 m, and $\rho_i/\rho_{\max}$ is normalised building density within 330 m.
 
 ### Bi-objective DC-OPF
 Two competing objectives are minimised simultaneously:
