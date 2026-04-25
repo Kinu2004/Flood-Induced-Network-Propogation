@@ -44,7 +44,7 @@ function [point_lats, point_lons] = load_geojson_points(filename)
     for k = 1:N
         try
             coords        = features(k).geometry.coordinates;
-            point_lons(k) = coords(1);   % GeoJSON: [lon, lat]
+            point_lons(k) = coords(1);  
             point_lats(k) = coords(2);
         catch
             valid(k) = false;
