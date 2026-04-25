@@ -1,6 +1,6 @@
 function [critical_proximity, density_norm] =  compute_criticality_spatial(lats, lons, n)
-rd_deg = 0.005;   
-rc_deg = 0.002; 
+rd_deg = 0.00296;   
+rc_deg = 0.00135; 
 [b_lats, b_lons] = load_geojson_points('export.geojson');
 N_buildings      = length(b_lats);
 building_density = zeros(n,1);
