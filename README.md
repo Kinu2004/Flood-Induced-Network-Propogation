@@ -43,8 +43,7 @@ flood_resilience/
 
 - MATLAB R2022b or later
 - Optimisation Toolbox (`linprog`, `fmincon`)
-- Mapping Toolbox (optional, for `geoscatter` visualisation only)
-- `solver_NR.m` — Newton-Raphson AC power flow solver (not included; standard implementation available from MATPOWER or similar)
+
 
 ---
 
